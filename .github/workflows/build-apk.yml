@@ -1,0 +1,57 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Java 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Android SDK Pakete installieren
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Debug APK bauen
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: APK finden und vorbereiten
+        shell: bash
+        run: |
+          echo "Gefundene APK-Dateien:"
+          find app/build/outputs -type f -name "*.apk" -print || true
+          APK_PATH="$(find app/build/outputs -type f -name "*.apk" | head -n 1)"
+          if [ -z "$APK_PATH" ]; then
+            echo "FEHLER: Es wurde keine APK erzeugt."
+            exit 1
+          fi
+          cp "$APK_PATH" Butz-Konfigurator.apk
+          ls -lh Butz-Konfigurator.apk
+
+      - name: APK als Download bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Butz-Konfigurator-APK
+          path: Butz-Konfigurator.apk
+          if-no-files-found: error
+          retention-days: 30
