@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Butz-Liftparts Konfigurator</title>
+    <script>
+      (() => {
+        const AUTH_KEY = 'bl_config_auth_v1';
+        const AUTH_TIME_KEY = 'bl_config_auth_time_v1';
+        const MAX_AGE_MS = 8 * 60 * 60 * 1000;
+        let allowed = false;
+        try {
+          const ok = sessionStorage.getItem(AUTH_KEY) === 'ok';
+          const ts = Number(sessionStorage.getItem(AUTH_TIME_KEY) || '0');
+          allowed = ok && ts > 0 && (Date.now() - ts) < MAX_AGE_MS;
+          if (!allowed) {
+            sessionStorage.removeItem(AUTH_KEY);
+            sessionStorage.removeItem(AUTH_TIME_KEY);
+          }
+        } catch (_) {
+          allowed = false;
+        }
+        if (!allowed) {
+          window.location.replace('../?login=required');
+          throw new Error('Konfigurator-Anmeldung erforderlich');
+        }
+      })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/assets/bl-real3d-specs-20260803-final.js?v=20260805-componenttext-tutorial-v4"></script>
+    <script type="module" crossorigin src="/assets/index-real3d-20260818-v21-oneclick-final.js"></script>
+    <script type="module" crossorigin src="/assets/bl-real3d-viewer-20260803-final.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CYndIOvV.css">
+    <link rel="icon" type="image/png" href="/assets/brand/butz-liftparts-logo.png" />
+    <style>
+      :root{--bl-brand:#1d3557;--bl-brand2:#2f6f9f;--bl-accent:#f0b429;--bl-text:#172033;--bl-muted:#657187;--bl-line:rgba(35,54,82,.16);--bl-red:#c92a2a;--bl-green:#15803d;}
+      /* Sichtbare Haken bei allen Checkboxen im Konfigurator */
+      input[type="checkbox"]{appearance:auto!important;-webkit-appearance:checkbox!important;width:16px!important;height:16px!important;min-width:16px!important;min-height:16px!important;accent-color:var(--bl-brand2)!important;}
+      input[type="checkbox"]:checked{accent-color:var(--bl-brand2)!important;}
+      button[role="checkbox"],div[role="checkbox"]{position:relative!important;background:#fff!important;border:1px solid rgba(35,54,82,.32)!important;color:#fff!important;}
+      button[role="checkbox"][data-state="checked"],button[role="checkbox"][aria-checked="true"],div[role="checkbox"][data-state="checked"],div[role="checkbox"][aria-checked="true"]{background:var(--bl-brand2)!important;border-color:var(--bl-brand2)!important;}
+      button[role="checkbox"][data-state="checked"]::after,button[role="checkbox"][aria-checked="true"]::after,div[role="checkbox"][data-state="checked"]::after,div[role="checkbox"][aria-checked="true"]::after{content:"✓"!important;position:absolute!important;inset:0!important;display:grid!important;place-items:center!important;color:#fff!important;font-size:13px!important;font-weight:900!important;line-height:1!important;z-index:2!important;}
+      button[role="checkbox"] svg,div[role="checkbox"] svg{display:block!important;opacity:1!important;color:#fff!important;stroke:currentColor!important;stroke-width:3!important;}
+
+      .bl-request-fab{position:absolute;right:18px;top:18px;z-index:30;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.bl-preview-actions-host{overflow:hidden}
+      body::after{display:none!important;}
+      button[value="innen"],button[value="aussen"],button[role="tab"][value="innen"],button[role="tab"][value="aussen"]{border:0!important;background:hsl(var(--primary))!important;color:hsl(var(--primary-foreground))!important;border-radius:.5rem!important;font-weight:500!important;box-shadow:0 10px 22px rgba(29,53,87,.22)!important;transition:background-color .15s ease,transform .15s ease,box-shadow .15s ease!important}button[value="innen"]:hover,button[value="aussen"]:hover{background:hsl(var(--primary) / .9)!important}button[value="innen"][data-state="active"],button[value="aussen"][data-state="active"],button[role="tab"][value="innen"][data-state="active"],button[role="tab"][value="aussen"][data-state="active"]{background:hsl(var(--primary))!important;color:hsl(var(--primary-foreground))!important;box-shadow:0 10px 22px rgba(29,53,87,.24)!important}button[value="innen"] svg,button[value="aussen"] svg{color:currentColor!important}
+      .bl-sidebar-brand-logo{display:flex;justify-content:center;align-items:center;background:#fff;margin:22px auto 0;padding:16px 10px 18px;width:100%;min-height:150px}.bl-sidebar-brand-logo img{display:block;width:min(230px,92%);height:auto;object-fit:contain}
+
+      /* sichtbare Haken/Kreuze für Auswahlkästchen */
+      input[type="checkbox"]{accent-color:var(--bl-brand2)!important;}
+      input[type="checkbox"]:checked{accent-color:var(--bl-brand2)!important;}
+      button[role="checkbox"]{position:relative!important;}
+      button[role="checkbox"][data-state="checked"]::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:900;line-height:1;}
+      button[role="checkbox"][aria-checked="true"]::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:900;line-height:1;}
+      .bl-request-btn{border:0;border-radius:16px;min-height:46px;padding:0 18px;background:linear-gradient(145deg,var(--bl-brand),var(--bl-brand2));color:#fff;font-weight:900;letter-spacing:.01em;box-shadow:0 14px 34px rgba(29,53,87,.22);cursor:pointer;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+      .bl-request-btn.secondary{background:rgba(255,255,255,.94);color:var(--bl-brand);border:1px solid var(--bl-line)}
+      .bl-request-btn:hover{transform:translateY(-1px)}
+      .bl-request-modal{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.42);display:none;align-items:center;justify-content:center;padding:18px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--bl-text)}
+      .bl-request-modal.open{display:flex}.bl-request-card{width:min(980px,100%);max-height:92vh;overflow:auto;background:rgba(255,255,255,.98);border-radius:26px;box-shadow:0 30px 90px rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.86);padding:22px}.bl-request-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}.bl-request-head h2{margin:0 0 7px;font-size:1.55rem;letter-spacing:-.03em}.bl-request-head p{margin:0;color:var(--bl-muted);line-height:1.45}.bl-close{border:1px solid var(--bl-line);background:#fff;border-radius:12px;min-height:38px;padding:0 12px;cursor:pointer;font-weight:800;color:var(--bl-brand)}
+      .bl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.bl-field{display:grid;gap:7px}.bl-field label{font-size:.78rem;font-weight:900;color:var(--bl-brand);text-transform:uppercase;letter-spacing:.08em}.bl-field input,.bl-field textarea,.bl-field select{width:100%;border:1px solid var(--bl-line);border-radius:14px;background:#fff;color:var(--bl-text);font:inherit;padding:12px 13px;outline:none}.bl-field textarea{min-height:96px;resize:vertical}.bl-field input:focus,.bl-field textarea:focus,.bl-field select:focus{border-color:rgba(47,111,159,.55);box-shadow:0 0 0 4px rgba(47,111,159,.12)}.bl-wide{grid-column:span 2}.bl-full{grid-column:1/-1}.bl-components{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.bl-comp{border:1px solid var(--bl-line);border-radius:15px;padding:11px;background:#f8fafc;display:grid;gap:8px}.bl-comp label{display:flex;gap:8px;align-items:center;font-weight:900;color:var(--bl-text);text-transform:none;letter-spacing:0;font-size:.94rem}.bl-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px}.bl-note{padding:11px 13px;background:rgba(240,180,41,.13);border:1px solid rgba(240,180,41,.3);border-radius:15px;color:#6b4e00;font-weight:700;line-height:1.42}.bl-error{display:none;padding:11px 13px;background:rgba(201,42,42,.1);color:var(--bl-red);border-radius:14px;font-weight:800;line-height:1.42;margin-top:12px}.bl-success{display:none;padding:11px 13px;background:rgba(21,128,61,.1);color:var(--bl-green);border-radius:14px;font-weight:800;line-height:1.42;margin-top:12px}.bl-hp{position:absolute!important;left:-5000px!important;opacity:0!important}@media(max-width:840px){.bl-grid,.bl-components{grid-template-columns:1fr}.bl-wide{grid-column:auto}.bl-request-fab{left:12px;right:12px;top:auto;bottom:14px}.bl-request-btn{flex:1}}
+    
+      /* Anpassung: Checkbox-Haken sichtbar erzwingen */
+      button[role="checkbox"]{position:relative!important;overflow:visible!important;}
+      button[role="checkbox"][data-state="checked"],button[role="checkbox"][aria-checked="true"]{background:var(--bl-brand2)!important;border-color:var(--bl-brand2)!important;}
+      button[role="checkbox"][data-state="checked"]::before,button[role="checkbox"][aria-checked="true"]::before{content:"✓"!important;position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-52%)!important;color:#fff!important;font-size:14px!important;font-weight:1000!important;line-height:1!important;z-index:20!important;pointer-events:none!important;}
+      button[role="checkbox"][data-state="checked"] span,button[role="checkbox"][aria-checked="true"] span{opacity:1!important;display:flex!important;color:#fff!important;}
+
+    
+      /* Nur Taster-3D-Vorschau */
+      .bl-taster-overlay{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.62);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:22px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033}
+      .bl-taster-modal{width:min(1040px,100%);max-height:92vh;overflow:hidden;border-radius:24px;background:#fff;border:1px solid rgba(255,255,255,.8);box-shadow:0 30px 90px rgba(0,0,0,.35);display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr)}
+      .bl-taster-view{position:relative;min-height:470px;background:radial-gradient(circle at 30% 20%,rgba(47,111,159,.34),transparent 32%),linear-gradient(145deg,#0f172a,#1d3557 58%,#0f172a);overflow:hidden}
+      .bl-taster-view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}.bl-taster-view canvas:active{cursor:grabbing}
+      .bl-taster-hint{position:absolute;left:16px;bottom:14px;color:rgba(255,255,255,.76);font-size:12px;font-weight:700;background:rgba(15,23,42,.38);border:1px solid rgba(255,255,255,.14);padding:8px 10px;border-radius:999px}
+      .bl-taster-face-label{position:absolute;left:16px;top:16px;transform:none;z-index:3;pointer-events:none;color:#111827;font-size:clamp(18px,4vw,32px);font-weight:900;line-height:1;text-align:left;text-shadow:0 1px 1px rgba(255,255,255,.85);background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.7);border-radius:8px;padding:6px 9px;max-width:calc(100% - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(15,23,42,.12)}
+      .bl-taster-info{padding:26px;display:flex;flex-direction:column;gap:18px;background:linear-gradient(180deg,#fff,#f8fafc)}
+      .bl-taster-kicker{margin:0 0 8px;color:#2f6f9f;font-size:12px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}.bl-taster-info h2{margin:0 0 10px;color:#172033;font-size:26px;line-height:1.08;letter-spacing:-.035em}.bl-taster-muted{margin:0;color:#657187;line-height:1.55;font-size:14px}
+      .bl-taster-facts{display:grid;gap:10px}.bl-taster-facts div{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(35,54,82,.12);background:#fff;border-radius:14px;padding:12px 13px}.bl-taster-facts span{color:#657187;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.bl-taster-facts strong{color:#172033;text-align:right;font-size:14px}
+      .bl-taster-close{margin-top:auto;border:0;border-radius:16px;min-height:46px;padding:0 18px;background:linear-gradient(145deg,#1d3557,#2f6f9f);color:#fff;font-weight:900;cursor:pointer;box-shadow:0 14px 34px rgba(29,53,87,.22)}.bl-taster-close:hover{filter:saturate(1.08);transform:translateY(-1px)}
+      @media(max-width:820px){.bl-taster-modal{grid-template-columns:1fr;overflow:auto}.bl-taster-view{min-height:360px}.bl-taster-info{padding:20px}.bl-taster-overlay{padding:12px}}
+
+      /* Geführte Programmeinführung */
+      .bl-tutorial-overlay{
+        position:fixed;
+        inset:0;
+        z-index:200000;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:24px;
+        background:rgba(15,23,42,.58);
+        backdrop-filter:grayscale(.35) blur(3px);
+        -webkit-backdrop-filter:grayscale(.35) blur(3px);
+        font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+        color:var(--bl-text);
+      }
+      .bl-tutorial-overlay[hidden]{display:none!important;}
+      .bl-tutorial-bubble{
+        position:relative;
+        width:min(720px,100%);
+        max-height:calc(100vh - 48px);
+        overflow:auto;
+        padding:clamp(24px,4vw,38px);
+        border:1px solid rgba(255,255,255,.86);
+        border-radius:28px;
+        background:linear-gradient(155deg,rgba(255,255,255,.99),rgba(247,250,252,.98));
+        box-shadow:0 34px 100px rgba(0,0,0,.34);
+      }
+      .bl-tutorial-bubble::after{
+        content:"";
+        position:absolute;
+        left:clamp(42px,12vw,92px);
+        bottom:-18px;
+        width:38px;
+        height:38px;
+        background:#f8fafc;
+        border-right:1px solid rgba(255,255,255,.86);
+        border-bottom:1px solid rgba(255,255,255,.86);
+        transform:rotate(45deg);
+        border-radius:0 0 8px 0;
+      }
+      .bl-tutorial-kicker{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        margin:0 0 14px;
+        padding:7px 11px;
+        border-radius:999px;
+        background:rgba(47,111,159,.11);
+        color:var(--bl-brand2);
+        font-size:.76rem;
+        font-weight:900;
+        letter-spacing:.09em;
+        text-transform:uppercase;
+      }
+      .bl-tutorial-bubble h2{
+        margin:0 0 16px;
+        color:var(--bl-brand);
+        font-size:clamp(1.65rem,4vw,2.25rem);
+        line-height:1.08;
+        letter-spacing:-.035em;
+      }
+      .bl-tutorial-bubble p{
+        margin:0 0 14px;
+        color:#475569;
+        font-size:1rem;
+        line-height:1.66;
+      }
+      .bl-tutorial-bubble strong{color:var(--bl-text);}
+      .bl-tutorial-feedback{
+        margin:20px 0;
+        padding:16px 18px;
+        border:1px solid rgba(47,111,159,.18);
+        border-radius:18px;
+        background:rgba(47,111,159,.07);
+      }
+      .bl-tutorial-feedback p{
+        margin:0 0 9px;
+        color:var(--bl-brand);
+        font-weight:900;
+      }
+      .bl-tutorial-feedback ul{
+        margin:0;
+        padding-left:21px;
+        color:#475569;
+        line-height:1.58;
+      }
+      .bl-tutorial-note{
+        display:flex;
+        gap:11px;
+        align-items:flex-start;
+        margin-top:18px;
+        padding:14px 16px;
+        border:1px solid rgba(240,180,41,.32);
+        border-radius:16px;
+        background:rgba(240,180,41,.12);
+        color:#6b4e00;
+        font-size:.92rem;
+        font-weight:700;
+        line-height:1.5;
+      }
+      .bl-tutorial-actions{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        margin-top:26px;
+      }
+      .bl-tutorial-progress{
+        color:var(--bl-muted);
+        font-size:.84rem;
+        font-weight:800;
+      }
+      .bl-tutorial-next{
+        border:0;
+        border-radius:15px;
+        min-width:130px;
+        min-height:48px;
+        padding:0 22px;
+        background:linear-gradient(145deg,var(--bl-brand),var(--bl-brand2));
+        color:#fff;
+        font:inherit;
+        font-weight:900;
+        cursor:pointer;
+        box-shadow:0 14px 32px rgba(29,53,87,.25);
+        transition:transform .15s ease,box-shadow .15s ease,filter .15s ease;
+      }
+      .bl-tutorial-next:hover{transform:translateY(-1px);filter:saturate(1.08);box-shadow:0 17px 36px rgba(29,53,87,.29);}
+      .bl-tutorial-next:focus-visible{outline:3px solid rgba(240,180,41,.75);outline-offset:3px;}
+      body.bl-tutorial-open{overflow:hidden;}
+      @media(max-width:620px){
+        .bl-tutorial-overlay{padding:14px;align-items:flex-start;overflow:auto;}
+        .bl-tutorial-bubble{margin:auto 0;padding:23px 20px;border-radius:22px;max-height:none;}
+        .bl-tutorial-bubble::after{display:none;}
+        .bl-tutorial-actions{align-items:stretch;flex-direction:column-reverse;}
+        .bl-tutorial-next{width:100%;}
+        .bl-tutorial-progress{text-align:center;}
+      }
+
+
+      /* Geführtes Bereichs-Tutorial */
+      .bl-guide-overlay{position:fixed;inset:0;z-index:199999;pointer-events:none;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+      .bl-guide-overlay[hidden]{display:none!important}
+      .bl-guide-focus{position:fixed;z-index:200000;border-radius:16px;box-shadow:0 0 0 9999px rgba(15,23,42,.62),0 0 0 4px rgba(240,180,41,.95),0 18px 55px rgba(0,0,0,.28);transition:all .28s ease;pointer-events:none}
+      .bl-guide-bubble{position:fixed;z-index:200001;width:min(390px,calc(100vw - 28px));padding:20px 20px 18px;border-radius:20px;background:linear-gradient(155deg,#fff,#f7fafc);border:1px solid rgba(255,255,255,.92);box-shadow:0 25px 75px rgba(0,0,0,.34);pointer-events:auto;color:var(--bl-text)}
+      .bl-guide-bubble h3{margin:0 0 9px;color:var(--bl-brand);font-size:1.2rem;line-height:1.2}
+      .bl-guide-bubble p{margin:0;color:#475569;font-size:.94rem;line-height:1.55}
+      .bl-guide-count{display:block;margin-bottom:8px;color:var(--bl-brand2);font-size:.72rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+      .bl-guide-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:17px}
+      .bl-guide-skip{border:0;background:transparent;color:var(--bl-muted);font-weight:800;cursor:pointer;padding:8px 4px}
+      .bl-guide-next{border:0;border-radius:13px;min-height:42px;padding:0 18px;background:linear-gradient(145deg,var(--bl-brand),var(--bl-brand2));color:#fff;font-weight:900;cursor:pointer;box-shadow:0 10px 24px rgba(29,53,87,.22)}
+      .bl-guide-target{position:relative!important;z-index:200000!important}
+      @media(max-width:700px){.bl-guide-bubble{left:14px!important;right:14px!important;bottom:14px!important;top:auto!important;width:auto}.bl-guide-focus{border-radius:12px}}
+
+      /* Feinere, realistischere Metallwirkung in der 2D-Vorschau */
+      main svg rect[fill="#94a3b8"],main svg path[fill="#94a3b8"],main svg rect[fill="#d1d5db"],main svg circle[fill="#d1d5db"]{filter:drop-shadow(0 1px 1px rgba(15,23,42,.18));}
+      main svg{--bl-metal-soft:#c8d0d8;--bl-metal-light:#eef2f5;}
+
+</style>
+  
+    <style id="bl-mobile-app-style">
+      @media (max-width: 1024px) {
+        html,body,#root{width:100%;min-height:100%;margin:0;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+        body{padding-bottom:calc(68px + env(safe-area-inset-bottom));background:hsl(var(--background));}
+        .bl-sidebar-brand-logo{min-height:82px!important;margin:8px auto 0!important;padding:8px 10px 10px!important}
+        .bl-sidebar-brand-logo img{width:min(170px,62vw)!important}
+        .bl-mobile-panel{width:100%!important;max-width:none!important;border-left:0!important;border-right:0!important;height:auto!important;min-height:calc(100dvh - 68px - env(safe-area-inset-bottom))!important}
+        .bl-mobile-panel[data-bl-mobile-active="false"]{display:none!important}
+        .bl-mobile-panel[data-bl-mobile-active="true"]{display:flex!important}
+        .bl-mobile-panel[data-bl-panel="config"]{overflow:visible!important}
+        .bl-mobile-panel[data-bl-panel="preview"]{min-height:calc(100dvh - 68px - env(safe-area-inset-bottom))!important}
+        .bl-mobile-panel[data-bl-panel="summary"]{overflow:visible!important}
+        .bl-mobile-panel [class*="overflow-y-auto"],.bl-mobile-panel [class*="overflow-auto"]{max-height:none!important}
+        .bl-mobile-panel input,.bl-mobile-panel select,.bl-mobile-panel textarea{font-size:16px!important}
+        .bl-mobile-panel button,.bl-mobile-panel [role="button"]{min-height:42px}
+        .bl-mobile-panel [class*="h-14"][class*="border-b"]{height:auto!important;min-height:58px!important;padding:8px 10px!important;gap:8px!important;flex-wrap:wrap!important}
+        .bl-mobile-panel [class*="min-h-[520px]"]{min-height:calc(100dvh - 150px)!important}
+        .bl-mobile-panel [class*="absolute bottom-4 right-4"]{right:10px!important;bottom:10px!important;left:10px!important;justify-content:flex-end!important;flex-wrap:wrap!important}
+        .bl-request-card{border-radius:20px!important;padding:16px!important;max-height:calc(100dvh - 24px)!important}
+        .bl-request-modal{padding:12px!important;align-items:flex-start!important;overflow:auto!important}
+        .bl-taster-overlay{padding:10px!important;align-items:flex-start!important;overflow:auto!important}
+        .bl-taster-view{min-height:300px!important}
+        .bl-mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:99999;height:calc(68px + env(safe-area-inset-bottom));padding:7px 8px calc(7px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(3,1fr);gap:7px;background:rgba(248,250,252,.97);border-top:1px solid rgba(35,54,82,.15);box-shadow:0 -12px 34px rgba(15,23,42,.13);backdrop-filter:blur(14px)}
+        .bl-mobile-nav button{border:0;border-radius:14px;background:transparent;color:#64748b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;font-size:11px;font-weight:800;min-height:52px;padding:5px 4px}
+        .bl-mobile-nav button span:first-child{font-size:19px;line-height:1}
+        .bl-mobile-nav button.active{background:linear-gradient(145deg,var(--bl-brand),var(--bl-brand2));color:white;box-shadow:0 8px 20px rgba(29,53,87,.22)}
+      }
+      @media (min-width:1025px){.bl-mobile-nav{display:none!important}}
+    </style>
+    <script id="bl-mobile-app-nav">
+      (()=>{
+        const isMobile=()=>window.matchMedia('(max-width: 1024px)').matches;
+        let active='preview';
+        function apply(){
+          if(!isMobile()) return;
+          const root=document.getElementById('root');
+          if(!root) return;
+          const shell=[...root.querySelectorAll('div')].find(el=>el.className&&String(el.className).includes('h-screen')&&String(el.className).includes('w-full')&&el.children.length>=3);
+          if(!shell) return;
+          const kids=[...shell.children].filter(x=>x.tagName==='DIV');
+          if(kids.length<3) return;
+          const panels=[['config',kids[0]],['preview',kids[1]],['summary',kids[kids.length-1]]];
+          panels.forEach(([name,el])=>{el.classList.add('bl-mobile-panel');el.dataset.blPanel=name;el.dataset.blMobileActive=String(name===active)});
+          let nav=document.querySelector('.bl-mobile-nav');
+          if(!nav){
+            nav=document.createElement('nav');nav.className='bl-mobile-nav';nav.setAttribute('aria-label','Mobile Navigation');
+            nav.innerHTML='<button data-p="config"><span>⚙</span><span>Konfiguration</span></button><button data-p="preview"><span>▣</span><span>Vorschau</span></button><button data-p="summary"><span>☰</span><span>Übersicht</span></button>';
+            nav.addEventListener('click',ev=>{const b=ev.target.closest('button[data-p]');if(!b)return;active=b.dataset.p;apply();window.scrollTo({top:0,behavior:'instant'})});
+            document.body.appendChild(nav);
+          }
+          nav.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.p===active));
+        }
+        const mo=new MutationObserver(()=>apply());
+        document.addEventListener('DOMContentLoaded',()=>{mo.observe(document.documentElement,{childList:true,subtree:true});apply()});
+        window.addEventListener('resize',apply);
+        setTimeout(apply,250);setTimeout(apply,900);
+      })();
+    </script>
+
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <div id="blTutorialOverlay" class="bl-tutorial-overlay" role="dialog" aria-modal="true" aria-labelledby="blTutorialTitle" hidden>
+      <section class="bl-tutorial-bubble">
+        <div class="bl-tutorial-kicker">Willkommen im Konfigurator</div>
+        <h2 id="blTutorialTitle">Willkommen im Tableau-Konfigurator! 👋</h2>
+        <p>Vielen Dank, dass Sie unseren Tableau-Konfigurator nutzen.</p>
+        <p>Wir haben den Konfigurator entwickelt, um die <strong>Herstellung von Tableaus einfacher, übersichtlicher und effizienter</strong> zu gestalten.</p>
+        <p>Der Kunde kann sein gewünschtes Tableau direkt im Programm selbst zusammenstellen und anschließend an uns übermitteln. Dadurch erhalten wir alle wichtigen Angaben, die wir für die finalen Kundenzeichnungen benötigen – ohne zahlreiche E-Mails, Telefonate oder zusätzliche Rückfragen.</p>
+
+        <div class="bl-tutorial-feedback">
+          <p>Für die weitere Entwicklung ist uns Ihr ehrliches Feedback besonders wichtig:</p>
+          <ul>
+            <li>Ist das Programm aus Ihrer Sicht sinnvoll?</li>
+            <li>Würden Sie das Programm selbst verwenden?</li>
+            <li>Welche Funktionen fehlen noch?</li>
+            <li>Was sollte auf jeden Fall ergänzt oder verbessert werden?</li>
+          </ul>
+        </div>
+
+        <div class="bl-tutorial-note"><span aria-hidden="true">🛠️</span><span>Bitte beachten Sie, dass sich die Anwendung noch im Aufbau befindet. Daher können aktuell noch Fehler oder kleinere Bugs auftreten. Diese werden Schritt für Schritt behoben.</span></div>
+        <p style="margin-top:20px;margin-bottom:0"><strong>Vielen Dank für Ihre Unterstützung und Ihr Feedback!</strong></p>
+
+        <div class="bl-tutorial-actions">
+          <span class="bl-tutorial-progress">Einführung · Schritt 1</span>
+          <button id="blTutorialNext" class="bl-tutorial-next" type="button">Weiter</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="blGuideOverlay" class="bl-guide-overlay" hidden aria-live="polite">
+      <div id="blGuideFocus" class="bl-guide-focus"></div>
+      <section id="blGuideBubble" class="bl-guide-bubble" role="dialog" aria-modal="true" aria-labelledby="blGuideTitle">
+        <span id="blGuideCount" class="bl-guide-count"></span>
+        <h3 id="blGuideTitle"></h3>
+        <p id="blGuideText"></p>
+        <div class="bl-guide-actions">
+          <button id="blGuideSkip" class="bl-guide-skip" type="button">Tutorial überspringen</button>
+          <button id="blGuideNext" class="bl-guide-next" type="button">Weiter</button>
+        </div>
+      </section>
+    </div>
+
+
+    <div class="bl-request-fab">
+      <button id="blSaveExport" class="bl-request-btn" type="button">Speichern und Exportieren</button>
+      <a class="bl-request-btn secondary" href="../admin/" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">Mitarbeiterbereich</a>
+    </div>
+
+    <div id="blRequestModal" class="bl-request-modal" role="dialog" aria-modal="true" aria-label="Kundenanfrage senden">
+      <div class="bl-request-card">
+        <div class="bl-request-head">
+          <div><h2>Konfiguration als Anfrage senden</h2><p>Die Anfrage landet zuerst im Mitarbeiterbereich und muss dort geprüft/freigegeben werden, bevor daraus ein interner Auftrag entsteht.</p></div>
+          <button id="blCloseRequest" class="bl-close" type="button">Schließen</button>
+        </div>
+        <form id="blRequestForm" class="bl-grid">
+          <input id="blWebsite" class="bl-hp" tabindex="-1" autocomplete="off" />
+          <div class="bl-field"><label>Firma / Kunde *</label><input id="blCompany" required placeholder="z. B. Muster GmbH" /></div>
+          <div class="bl-field"><label>Ansprechpartner</label><input id="blContact" placeholder="Name" /></div>
+          <div class="bl-field"><label>E-Mail *</label><input id="blEmail" type="email" required placeholder="name@firma.de" /></div>
+          <div class="bl-field"><label>Telefon</label><input id="blPhone" placeholder="optional" /></div>
+          <div class="bl-field"><label>Auftragsnummer / Projekt-Nr.</label><input id="blOrderNo" placeholder="falls vorhanden" /></div>
+          <div class="bl-field"><label>Projekt / Anlage</label><input id="blProject" placeholder="z. B. Haupttableau EG" /></div>
+          <div class="bl-field bl-full"><label>Benötigte Positionen</label><div class="bl-components" id="blComponents"></div></div>
+          <div class="bl-field bl-full"><label>Nachricht / Hinweise</label><textarea id="blMessage" placeholder="z. B. Kronberg-Taster nötig, Liefertermin, Besonderheiten..."></textarea></div>
+          <div class="bl-field bl-full"><div class="bl-note">Spam-Schutz: Diese Anfrage wird nicht direkt zur Bestellliste hinzugefügt. Ein Mitarbeiter muss sie im Adminbereich erst prüfen und mit „Als Auftrag übernehmen“ freigeben.</div></div>
+          <div id="blReqError" class="bl-error bl-full"></div><div id="blReqSuccess" class="bl-success bl-full"></div>
+          <div class="bl-actions bl-full"><button class="bl-request-btn secondary" id="blCancelRequest" type="button">Abbrechen</button><button id="blSubmitRequest" class="bl-request-btn" type="submit">Anfrage an Mitarbeiter senden</button></div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        const SUPABASE_URL = 'https://yrtlmdxifznynwhqjlrp.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_rsqWXGFuuEgki6kcn-840A_aIxAKYiD';
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const components = ['Tableau','Taster'];
+        const actionFab = document.querySelector('.bl-request-fab');
+        const $ = id => document.getElementById(id);
+        function open(){ $('blRequestModal').classList.add('open'); }
+        function close(){ $('blRequestModal').classList.remove('open'); }
+        function val(id){ return ($(id)?.value || '').trim(); }
+        function show(id,msg){ const el=$(id); el.textContent=msg; el.style.display='block'; }
+        function hide(id){ const el=$(id); el.textContent=''; el.style.display='none'; }
+        function selectedComponents(){ return components.map(c=>({ component:c, checked:$('comp_'+c)?.checked || false, supplier:val('sup_'+c) })).filter(x=>x.checked); }
+        function renderComponents(){ $('blComponents').innerHTML = components.map(c=>`<div class="bl-comp"><label><input id="comp_${c}" type="checkbox" ${c==='Tableau'?'checked':''}/> ${c}</label><input id="sup_${c}" placeholder="Händler/Lieferant optional" /></div>`).join(''); }
+        function placeActionButtons(){
+          const preview = document.querySelector('main > div.flex-1.relative');
+          if(actionFab && preview && actionFab.parentElement !== preview){
+            preview.appendChild(actionFab);
+            preview.classList.add('bl-preview-actions-host');
+          }
+        }
+        function placeSidebarLogo(){
+          const leftAside = document.querySelector('aside.border-r');
+          if(!leftAside) return;
+          let logo = document.getElementById('blSidebarLogo');
+          const target = leftAside.querySelector('.p-4.space-y-2.pb-8') || leftAside;
+          if(!logo){
+            logo = document.createElement('div');
+            logo.id = 'blSidebarLogo';
+            logo.className = 'bl-sidebar-brand-logo';
+            logo.innerHTML = '<img src="/assets/brand/butz-liftparts-logo.png" alt="Butz Liftparts Logo">';
+          }
+          if(logo.parentElement !== target) target.appendChild(logo);
+        }
+        function setup(){
+          renderComponents();
+          placeActionButtons();
+          placeSidebarLogo();
+          const placementObserver = new MutationObserver(()=>{ placeActionButtons(); placeSidebarLogo(); });
+          placementObserver.observe(document.body,{childList:true,subtree:true});
+          setTimeout(()=>{ placeActionButtons(); placeSidebarLogo(); },250); setTimeout(()=>{ placeActionButtons(); placeSidebarLogo(); },1000);
+          $('blSaveExport').addEventListener('click', async ()=>{
+            const findButtonByText = text => Array.from(document.querySelectorAll('button,[role="tab"]')).find(button => (button.textContent || '').trim().includes(text));
+            const activateTabByText = text => {
+              const button = findButtonByText(text);
+              if(!button) return false;
+              const pointerOptions = { bubbles:true, cancelable:true, button:0, buttons:1, pointerType:'mouse', isPrimary:true };
+              if(window.PointerEvent) button.dispatchEvent(new PointerEvent('pointerdown', pointerOptions));
+              button.dispatchEvent(new MouseEvent('mousedown', { bubbles:true, cancelable:true, button:0, buttons:1 }));
+              if(window.PointerEvent) button.dispatchEvent(new PointerEvent('pointerup', { ...pointerOptions, buttons:0 }));
+              button.dispatchEvent(new MouseEvent('mouseup', { bubbles:true, cancelable:true, button:0, buttons:0 }));
+              button.click();
+              return true;
+            };
+            const waitForPdfButton = async () => {
+              for(let attempt=0; attempt<30; attempt++){
+                const button = document.getElementById('blPdfExportOriginal');
+                if(button) return button;
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+              return null;
+            };
+            let pdfButton = document.getElementById('blPdfExportOriginal');
+            if(!pdfButton){
+              activateTabByText('Innen-Tableau');
+              await new Promise(resolve => setTimeout(resolve, 100));
+              activateTabByText('2D-Ansicht');
+              pdfButton = await waitForPdfButton();
+            }
+            if(pdfButton){ pdfButton.click(); return; }
+            alert('Der PDF-Export konnte nicht gestartet werden. Bitte öffne kurz die 2D-Ansicht und versuche es erneut.');
+          });
+          $('blCloseRequest').addEventListener('click', close); $('blCancelRequest').addEventListener('click', close); $('blRequestModal').addEventListener('click', e=>{ if(e.target.id==='blRequestModal') close(); });
+          $('blRequestForm').addEventListener('submit', submit);
+        }
+        async function submit(e){
+          e.preventDefault(); hide('blReqError'); hide('blReqSuccess');
+          if(val('blWebsite')) return; // Honeypot
+          const last = Number(localStorage.getItem('bl_last_request_at') || '0');
+          if(Date.now() - last < 60000){ show('blReqError','Bitte warte mindestens 60 Sekunden, bevor du erneut eine Anfrage sendest.'); return; }
+          const comps = selectedComponents();
+          if(!comps.length){ show('blReqError','Bitte mindestens eine benötigte Position auswählen.'); return; }
+          const payload = {
+            status:'Neu',
+            company: val('blCompany'),
+            contact_name: val('blContact') || null,
+            email: val('blEmail'),
+            phone: val('blPhone') || null,
+            order_number: val('blOrderNo') || null,
+            project: val('blProject') || null,
+            message: val('blMessage') || null,
+            components: comps,
+            source: 'konfigurator',
+            configuration: { page: location.href, sent_at: new Date().toISOString(), user_agent: navigator.userAgent }
+          };
+          $('blSubmitRequest').disabled=true; $('blSubmitRequest').textContent='Sende...';
+          const { error } = await db.from('customer_requests').insert(payload);
+          $('blSubmitRequest').disabled=false; $('blSubmitRequest').textContent='Anfrage an Mitarbeiter senden';
+          if(error){ show('blReqError','Anfrage konnte nicht gespeichert werden: '+error.message+' — Prüfe, ob die Tabelle customer_requests und die Policies in Supabase angelegt sind.'); return; }
+          localStorage.setItem('bl_last_request_at', String(Date.now()));
+          $('blRequestForm').reset(); renderComponents(); show('blReqSuccess','Anfrage wurde gespeichert. Ein Mitarbeiter kann sie jetzt im Adminbereich prüfen und übernehmen.');
+        }
+        document.addEventListener('DOMContentLoaded', setup);
+      })();
+    </script>
+
+
+    <script>
+      (function(){
+        const welcome = document.getElementById('blTutorialOverlay');
+        const welcomeNext = document.getElementById('blTutorialNext');
+        const guide = document.getElementById('blGuideOverlay');
+        const focus = document.getElementById('blGuideFocus');
+        const bubble = document.getElementById('blGuideBubble');
+        const title = document.getElementById('blGuideTitle');
+        const text = document.getElementById('blGuideText');
+        const count = document.getElementById('blGuideCount');
+        const next = document.getElementById('blGuideNext');
+        const skip = document.getElementById('blGuideSkip');
+        if(!welcome || !welcomeNext || !guide) return;
+
+        // Tutorial pro Browser/PC-Profil nur bei den ersten drei Öffnungen automatisch anzeigen.
+        // localStorage bleibt für diese Website auf demselben Browserprofil erhalten.
+        let tutorialOpenCount = 1;
+        try {
+          const key = 'bl_tutorial_open_count_v1';
+          const previous = Math.max(0, parseInt(localStorage.getItem(key) || '0', 10) || 0);
+          tutorialOpenCount = previous + 1;
+          localStorage.setItem(key, String(tutorialOpenCount));
+        } catch (_) {
+          tutorialOpenCount = 1;
+        }
+
+        if (tutorialOpenCount > 3) {
+          welcome.hidden = true;
+          guide.hidden = true;
+          document.body.classList.remove('bl-tutorial-open');
+          return;
+        }
+
+        welcome.hidden = false;
+
+        const byText = (selector, words) => Array.from(document.querySelectorAll(selector)).find(el => words.some(word => (el.textContent || '').trim().toLowerCase().includes(word)));
+        const steps = [
+          { title:'Innen-Tableau oder Außenrufe', text:'Hier wechseln Sie zwischen dem Innen-Tableau und den Außenrufen. Je nach Auswahl werden die passenden Einstellungen und die zugehörige Vorschau angezeigt.', target:()=>byText('button,[role="tab"]',['innen-tableau','außenrufe'])?.parentElement || byText('button,[role="tab"]',['innen-tableau','außenrufe']) },
+          { title:'Tableau auf der linken Seite anpassen', text:'Auf der linken Seite stellen Sie das Tableau nach Wunsch zusammen. Dort passen Sie unter anderem Maße, Bauweise, Taster, Anzeigen, Sonderfunktionen und die Positionierung der Bauteile an.', target:()=>document.querySelector('aside.border-r') || document.querySelector('aside') },
+          { title:'Einzelne Bauteile ansehen', text:'Wenn Sie in der Vorschau ein Bauteil anklicken, öffnet sich die 3D-Vorschau dieses Bauteils. Dort finden Sie außerdem alle wichtigen Informationen zur ausgewählten Ausführung.', target:()=>document.querySelector('main > div.flex-1.relative canvas')?.parentElement || document.querySelector('main > div.flex-1.relative') || document.querySelector('main') },
+          { title:'2D- und 3D-Ansicht', text:'Mit diesen Schaltflächen wechseln Sie zwischen der technischen 2D-Ansicht und der räumlichen 3D-Ansicht. So können Sie die Konfiguration aus beiden Darstellungen kontrollieren.', target:()=>byText('button,[role="tab"]',['2d-ansicht'])?.parentElement || byText('button,[role="tab"]',['3d-ansicht'])?.parentElement || document.querySelector('main') },
+          { title:'Speichern und Exportieren', text:'Über diesen Button wird die aktuelle Konfiguration als PDF erstellt und direkt heruntergeladen.', target:()=>document.getElementById('blSaveExport') },
+          { title:'Zusammenfassung auf der rechten Seite', text:'Auf der rechten Seite werden alle wichtigen Angaben zur aktuellen Konfiguration noch einmal übersichtlich zusammengefasst. Dort können Sie Ihre Auswahl vor dem Export kontrollieren.', target:()=>document.querySelector('aside.border-l') || Array.from(document.querySelectorAll('aside')).at(-1) }
+        ];
+        let index = 0;
+        let activeTarget = null;
+
+        function resolveTarget(step){ try{return step.target?.() || document.querySelector('#root');}catch(_){return document.querySelector('#root');} }
+        function position(){
+          if(guide.hidden) return;
+          activeTarget?.classList.remove('bl-guide-target');
+          activeTarget = resolveTarget(steps[index]);
+          if(!activeTarget) return;
+          activeTarget.classList.add('bl-guide-target');
+          const r=activeTarget.getBoundingClientRect();
+          const pad=8;
+          focus.style.left=Math.max(6,r.left-pad)+'px'; focus.style.top=Math.max(6,r.top-pad)+'px';
+          focus.style.width=Math.max(30,Math.min(innerWidth-12,r.width+pad*2))+'px'; focus.style.height=Math.max(30,Math.min(innerHeight-12,r.height+pad*2))+'px';
+          const bw=Math.min(390,innerWidth-28), bh=bubble.offsetHeight || 220;
+          let left=Math.max(14,r.right+20);
+          if(left+bw>innerWidth-14) left=Math.max(14,r.left-bw-20);
+          left=Math.min(innerWidth-bw-14,left);
+          let top=r.top;
+          if(top+bh>innerHeight-14) top=Math.max(14,innerHeight-bh-14);
+          bubble.style.left=left+'px'; bubble.style.top=top+'px';
+        }
+        function render(){
+          const step=steps[index]; count.textContent='Kurzanleitung · Schritt '+(index+1)+' von '+steps.length;
+          title.textContent=step.title; text.textContent=step.text;
+          next.textContent=index===steps.length-1?'Fertig':'Weiter';
+          requestAnimationFrame(()=>{position(); next.focus();});
+        }
+        function openGuide(){ welcome.hidden=true; guide.hidden=false; document.body.classList.add('bl-tutorial-open'); index=0; render(); }
+        function closeGuide(){ activeTarget?.classList.remove('bl-guide-target'); guide.hidden=true; document.body.classList.remove('bl-tutorial-open'); }
+        welcomeNext.addEventListener('click',openGuide);
+        next.addEventListener('click',()=>{ if(index<steps.length-1){index++;render();}else closeGuide(); });
+        skip.addEventListener('click',closeGuide);
+        addEventListener('resize',position,{passive:true});
+        addEventListener('scroll',position,{passive:true,capture:true});
+        document.body.classList.add('bl-tutorial-open');
+        requestAnimationFrame(()=>welcomeNext.focus());
+      })();
+    </script>
+
+  </body>
+</html>
